@@ -3,11 +3,11 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
 	entry: [
 		'src/index.ts',
-		'src/vite.ts',
-		'src/webpack.ts',
-		'src/rollup.ts',
-		'src/esbuild.ts',
-		'src/rolldown.ts',
+		// 'src/vite.ts',
+		// 'src/webpack.ts',
+		// 'src/rollup.ts',
+		// 'src/esbuild.ts',
+		// 'src/rolldown.ts',
 	],
 	format: ['esm', 'cjs'],
 	external: [
@@ -23,6 +23,7 @@ export default defineConfig({
 		'@babel/types',
 		'unplugin',
 		'fast-glob',
+		'webpack',
 	],
 	dts: true,
 	clean: true,

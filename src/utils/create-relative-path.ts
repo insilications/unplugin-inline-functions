@@ -30,7 +30,8 @@ export function createRelativePath(fromPath: string, toPath: string): string {
 	pathParts.push(...toParts.slice(commonLength));
 
 	// Join everything together with the target file (without extension)
-	let newPath = [...pathParts, toFile.replace(/\.(js|ts|jsx|tsx)$/, '')].join('/');
+	let newPath = [...pathParts, toFile.replace(/\.ts$/, '')].join('/');
+	// let newPath = [...pathParts, toFile.replace(/\.(js|ts|jsx|tsx)$/, '')].join('/');
 
 	// Ensure it starts with ./ if it's not going up directories
 	if (!newPath.startsWith('.')) {

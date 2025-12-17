@@ -10,7 +10,8 @@ export function resolveExportPath(sourcePath: string, fromDir: string): string |
 	const resolved = path.resolve(fromDir, sourcePath);
 
 	// Try different extensions
-	const extensions = ['.ts', '.tsx', '.js', '.jsx', ''];
+	const extensions = ['.ts', ''];
+	// const extensions = ['.ts', '.tsx', '.js', '.jsx', ''];
 	for (const ext of extensions) {
 		const withExt = resolved + ext;
 		if (fs.existsSync(withExt) && fs.statSync(withExt).isFile()) {

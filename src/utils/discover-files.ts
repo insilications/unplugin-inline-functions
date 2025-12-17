@@ -34,6 +34,7 @@ export function discoverFilesViaReferences(
 	initialFiles: Set<string>,
 	options: DiscoveryOptions
 ): DiscoveryResult {
+	console.log("discoverFilesViaReferences - options: ", options)
 	const { projectRoot, excludePatterns, debug, followExports, followImports } = options;
 	const discoveredViaExports = new Map<string, string[]>();
 	const files = new Set(initialFiles);
@@ -55,7 +56,8 @@ export function discoverFilesViaReferences(
 		visited.add(filePath);
 
 		// Skip non-JS/TS files
-		if (!/\.(js|ts|jsx|tsx)$/.test(filePath)) continue;
+		if (!/\.ts$/.test(filePath)) continue;
+		// if (!/\.(js|ts|jsx|tsx)$/.test(filePath)) continue;
 
 		try {
 			const contents = fs.readFileSync(filePath, 'utf8');

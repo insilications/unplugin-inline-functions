@@ -1,20 +1,15 @@
 import { parse } from '@babel/parser';
-import chalk from 'chalk';
-import fg from 'fast-glob';
 import { createHash } from 'node:crypto';
+import fg from 'fast-glob';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createUnplugin } from 'unplugin';
 import { collectMetadata, resetMetadata } from './collect-metadata';
 import { inlineFunctions } from './inline-functions';
-import { STATS } from './stats';
+// import { STATS } from './stats';
 import { discoverFilesViaReferences } from './utils/discover-files';
 import { findProjectRoot } from './utils/find-project-root';
-import {
-	logFileDiscovery,
-	logMetadataCollectionForFile,
-	logMetadataCollectionSummary,
-} from './utils/debug-logging';
+import type { LoaderDefinitionFunction } from 'webpack';
+
 
 export interface InlineFunctionsOptions {
 	/**
@@ -77,261 +72,118 @@ export interface InlineFunctionsOptions {
 	followImports?: boolean | 'side-effects' | 'all' | 'none';
 }
 
-const astCache = new Map<string, any>(); // hash -> ast
-const codeCache = new Map<string, string>(); // hash -> transformed code
+// Module-level state — shared across all loader invocations in a build
+let initialized = false;
+const astCache = new Map<string, any>();
+const codeCache = new Map<string, string>();
 
 function hashContent(content: string): string {
-	return createHash('md5').update(content).digest('hex');
+  return createHash('md5').update(content).digest('hex');
 }
 
-/**
- * Check if debug mode is enabled (either true or 'verbose')
- */
-function isDebugEnabled(debug: boolean | 'verbose' | undefined): boolean {
-	return debug === true || debug === 'verbose';
+function scanAndCollectMetadata(options: InlineFunctionsOptions) {
+  if (initialized) return;
+
+  // Should we set `initialized = true` here at the top-level or should I wait until the scan/collection has actually been successfully completed?
+  initialized = true;
+
+  const {
+    include = ['src/**/*.ts'],
+    // include = ['src/**/*.{js,ts,jsx,tsx}'],
+    exclude = ['node_modules/**', '**/*.spec.ts', '**/*.test.ts'],
+    cwd = process.cwd(),
+    debug = false,
+    followExports = true,
+    followImports = true,
+  } = options;
+
+  console.log("scanAndCollectMetadata - options: ", options);
+
+  // STATS.reset();
+  resetMetadata();
+  astCache.clear();
+  codeCache.clear();
+
+  const projectRoot = findProjectRoot(cwd);
+  const includePatterns = Array.isArray(include) ? include : [include];
+  const excludePatterns = Array.isArray(exclude) ? exclude : [exclude];
+
+  const initialFiles = new Set(
+    fg.sync(includePatterns, {
+      cwd: projectRoot,
+      ignore: excludePatterns,
+      absolute: true,
+      onlyFiles: true,
+    })
+  );
+
+  const { files } = discoverFilesViaReferences(initialFiles, {
+    projectRoot,
+    excludePatterns,
+    debug,
+    followExports: followExports || false,
+    followImports,
+  });
+
+  for (const filePath of files) {
+    // if (!/\.(js|ts|jsx|tsx)$/.test(filePath)) continue;
+    if (!/\.ts$/.test(filePath)) continue;
+    try {
+      const contents = fs.readFileSync(filePath, 'utf8');
+      const hash = hashContent(contents);
+      const ast = parse(contents, {
+        sourceType: 'module',
+        plugins: ['typescript'],
+        // plugins: ['typescript', 'jsx'],
+        sourceFilename: filePath,
+      });
+      astCache.set(hash, ast);
+      collectMetadata(ast);
+    } catch (error) {
+      console.warn(`Failed to parse ${filePath}:`, error);
+    }
+  }
 }
 
-/**
- * Check if verbose debug mode is enabled
- */
-function isVerboseDebug(debug: boolean | 'verbose' | undefined): boolean {
-	return debug === 'verbose';
-}
+// The actual webpack loader function
+const inlineFunctionsLoader: LoaderDefinitionFunction = function (source) {
+  const id = this.resourcePath;
+  console.log("id: ", id);
 
-export const unplugin = createUnplugin<InlineFunctionsOptions | undefined>((options = {}) => {
-	const {
-		include = ['src/**/*.{js,ts,jsx,tsx}'],
-		exclude = ['node_modules/**', '**/*.spec.ts', '**/*.test.ts', '**/*.spec.js', '**/*.test.js'],
-		cwd = process.cwd(),
-		debug = false,
-		followExports = true,
-		followImports = true,
-	} = options;
+  // Only transform JS/TS files
+  // if (!/\.(js|ts|jsx|tsx)$/.test(id)) {
+  if (!/\.ts$/.test(id)) {
+    return source;
+  }
 
-	let initialized = false;
-	const projectRoot = findProjectRoot(cwd);
+  // Get options passed via webpack config
+  const options: InlineFunctionsOptions = (this.getOptions() || {}) as InlineFunctionsOptions;
+    console.log("options: ", options);
 
-	if (isDebugEnabled(debug)) {
-		if (isVerboseDebug(debug)) {
-			console.log(chalk.blue('[unplugin-inline-functions] Debug mode enabled (verbose)'));
-			console.log(chalk.blue(`  cwd: ${cwd}`));
-			console.log(chalk.blue(`  projectRoot: ${projectRoot}`));
-			console.log(chalk.blue(`  include: ${JSON.stringify(include)}`));
-			console.log(chalk.blue(`  exclude: ${JSON.stringify(exclude)}`));
-			console.log(chalk.blue(`  followExports: ${followExports}`));
-			console.log(chalk.blue(`  followImports: ${followImports}`));
-		} else {
-			console.log(chalk.blue('[unplugin-inline-functions] Debug mode enabled'));
-		}
-	}
+  // Lazy one-time initialization
+  scanAndCollectMetadata(options);
 
-	/**
-	 * Scan all files matching the include patterns and collect metadata.
-	 * This runs once before any transformation.
-	 */
-	function scanAndCollectMetadata() {
-		if (initialized) return;
-		initialized = true;
+  const hash = hashContent(source);
+  if (codeCache.has(hash)) {
+    return codeCache.get(hash)!;
+  }
 
-		// Reset state
-		STATS.reset();
-		resetMetadata();
-		astCache.clear();
-		codeCache.clear();
+  try {
+    const ast =
+      astCache.get(hash) ??
+      parse(source, {
+        sourceType: 'module',
+        plugins: ['typescript', 'jsx'],
+        sourceFilename: id,
+      });
 
-		// Convert include to array
-		const includePatterns = Array.isArray(include) ? include : [include];
-		const excludePatterns = Array.isArray(exclude) ? exclude : [exclude];
+    const transformedCode = inlineFunctions(ast);
+    codeCache.set(hash, transformedCode);
+    return transformedCode;
+  } catch (error) {
+    console.error(`Failed to transform ${id}:`, error);
+    return source; // Return original on failure
+  }
+};
 
-		// Find all files matching the patterns
-		const initialFiles = new Set(
-			fg.sync(includePatterns, {
-				cwd: projectRoot,
-				ignore: excludePatterns,
-				absolute: true,
-				onlyFiles: true,
-			})
-		);
-
-		// Discover files via exports and imports if enabled
-		const { files, discoveredViaExports } = discoverFilesViaReferences(initialFiles, {
-			projectRoot,
-			excludePatterns,
-			debug,
-			followExports: followExports || false,
-			followImports,
-		});
-
-		const filesArray = Array.from(files);
-
-		// Log file discovery
-		logFileDiscovery({
-			projectRoot,
-			includePatterns,
-			excludePatterns,
-			filesArray,
-			debug,
-		});
-
-		// Collect metadata from each file
-		if (isVerboseDebug(debug)) {
-			console.log(chalk.blue('[unplugin-inline-functions] Collecting metadata from files...'));
-		}
-
-		for (const filePath of filesArray) {
-			// Skip non-JS/TS files
-			if (!/\.(js|ts|jsx|tsx)$/.test(filePath)) continue;
-
-			try {
-				const contents = fs.readFileSync(filePath, 'utf8');
-				const hash = hashContent(contents);
-
-				const ast = parse(contents, {
-					sourceType: 'module',
-					plugins: ['typescript', 'jsx'],
-					sourceFilename: filePath,
-				});
-
-				astCache.set(hash, ast);
-				collectMetadata(ast);
-
-				// Log metadata collection for this file
-				logMetadataCollectionForFile(filePath, ast, projectRoot, discoveredViaExports, debug);
-			} catch (error) {
-				// Skip files that fail to parse
-				if (isDebugEnabled(debug)) {
-					const relativePath = path.relative(projectRoot, filePath);
-					console.warn(
-						chalk.yellow(
-							`[unplugin-inline-functions] Failed to parse ${relativePath}: ${error}`
-						)
-					);
-				} else {
-					console.warn(`Failed to parse ${filePath}:`, error);
-				}
-			}
-		}
-
-		// Log metadata collection summary
-		logMetadataCollectionSummary(filesArray, debug);
-	}
-
-	/**
-	 * Log statistics about inlined functions.
-	 */
-	function logStats() {
-		const counts = Array.from(STATS.getAllInlinedFunctionCounts()).filter(
-			([name]) => name.trim() !== ''
-		);
-		if (counts.length > 0) {
-			console.log(chalk.green('\n✓ Inlined functions:'));
-			for (const [name, count] of counts) {
-				console.log(`  ${chalk.cyan(name)}: ${chalk.bold(count)}`);
-			}
-		}
-
-		const functions = Array.from(STATS.getAllTransformedFunctions()).filter(
-			([name]) => name.trim() !== ''
-		);
-
-		if (functions.length > 0) {
-			console.log(chalk.green('\n✓ Transformed functions:'));
-			// Group functions into lines of 4.
-			const chunkSize = 4;
-			// Calculate max width for each column.
-			const columnWidths = Array(chunkSize).fill(0);
-			for (let i = 0; i < functions.length; i++) {
-				const col = i % chunkSize;
-				const [name, { isPure }] = functions[i];
-				// Account for 2 extra characters if the function is pure (space + star)
-				columnWidths[col] = Math.max(columnWidths[col], name.length + (isPure ? 2 : 0));
-			}
-			// Print in grid format.
-			for (let i = 0; i < functions.length; i += chunkSize) {
-				const chunk = functions.slice(i, i + chunkSize);
-				const paddedChunk = chunk.map(([name, { isPure }], idx) =>
-					(isPure ? chalk.yellow : chalk.cyan)(
-						`${name}${isPure ? ' ★' : ''}`.padEnd(columnWidths[idx])
-					)
-				);
-				console.log(`  ${paddedChunk.join('  ')}`);
-			}
-			console.log('');
-		}
-	}
-
-	return {
-		name: 'unplugin-inline-functions',
-
-		buildStart() {
-			// Scan all files and collect metadata before transformation starts
-			if (isVerboseDebug(debug)) {
-				console.log(chalk.blue('[unplugin-inline-functions] buildStart() called'));
-			}
-			scanAndCollectMetadata();
-		},
-
-		transform(code: string, id: string) {
-			// Only transform JS/TS files
-			if (!/\.(js|ts|jsx|tsx)$/.test(id)) {
-				return null;
-			}
-
-			// Ensure metadata is collected (in case buildStart wasn't called)
-			if (!initialized) {
-				if (isDebugEnabled(debug)) {
-					console.warn(
-						chalk.yellow(
-							`[unplugin-inline-functions] Warning: buildStart() was not called, initializing in transform() for file: ${id}`
-						)
-					);
-				}
-				scanAndCollectMetadata();
-			}
-
-			if (isVerboseDebug(debug)) {
-				console.log(chalk.blue(`[unplugin-inline-functions] Transforming file: ${id}`));
-			}
-
-			const hash = hashContent(code);
-
-			// Return cached result if available
-			if (codeCache.has(hash)) {
-				return {
-					code: codeCache.get(hash)!,
-				};
-			}
-
-			try {
-				// Parse or use cached AST
-				const ast =
-					astCache.get(hash) ??
-					parse(code, {
-						sourceType: 'module',
-						plugins: ['typescript', 'jsx'],
-						sourceFilename: id,
-					});
-
-				// Transform the code
-				const transformedCode = inlineFunctions(ast);
-				codeCache.set(hash, transformedCode);
-
-				return {
-					code: transformedCode,
-				};
-			} catch (error) {
-				console.error(`Failed to transform ${id}:`, error);
-				return null;
-			}
-		},
-
-		buildEnd() {
-			// Log statistics after build completes
-			logStats();
-		},
-	};
-});
-
-// Export for convenience
-export const inlineFunctionsPlugin = unplugin.raw;
-export default unplugin;
+export default inlineFunctionsLoader;
