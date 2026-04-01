@@ -25,37 +25,41 @@
 		"test": "vitest"
 	},
 	"devDependencies": {
-		"@babel/generator": "^7.28.5",
-		"@babel/parser": "^7.28.5",
-		"@babel/traverse": "^7.28.5",
-		"@babel/types": "^7.28.5",
+		"@babel/generator": "^7.29.1",
+		"@babel/parser": "^7.29.2",
+		"@babel/traverse": "^7.29.0",
+		"@babel/types": "^7.29.0",
 		"@types/babel__generator": "^7.27.0",
 		"@types/babel__traverse": "^7.28.0",
 		"@types/node": "latest",
 		"chalk": "^5.6.2",
-		"esbuild": "^0.25.10",
-		"rollup": "^4.53.3",
+		"esbuild": "^0.27.4",
+		"eslint": "^10.1.0",
+		"rollup": "^4.60.1",
 		"rollup-plugin-esbuild": "^6.2.1",
 		"tsup": "^8.5.1",
-		"typescript": "^5.9.3",
-		"vite": "^6.4.1",
-		"vitest": "^3.2.4"
+		"typescript": "^6.0.2",
+		"vite": "^8.0.3",
+		"vitest": "^4.1.2"
 	},
 	"peerDependencies": {
 		"@babel/parser": "^7.26.3",
 		"@babel/traverse": "^7.26.4",
 		"@babel/types": "^7.26.3"
 	},
-	"packageManager": "pnpm@9.15.3+sha512.1f79bc245a66eb0b07c5d4d83131240774642caaa86ef7d0434ab47c0d16f66b04e21e0c086eb61e62c77efc4d7f7ec071afad3796af64892fae66509173893a",
+	"packageManager": "pnpm@10.33.0",
 	"dependencies": {
 		"fast-glob": "^3.3.3",
-		"unplugin": "^2.3.11",
+		"unplugin": "^3.0.0",
 		"webpack": "^5.105.4"
 	},
 	"pnpm": {
 		"overrides": {
 			"rollup": "^4.52.3",
 			"esbuild": "^0.25.10"
-		}
+		},
+		"onlyBuiltDependencies": [
+			"esbuild"
+		]
 	}
 }

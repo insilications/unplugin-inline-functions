@@ -2,14 +2,20 @@ import { parse } from '@babel/parser';
 import { createHash } from 'node:crypto';
 import fg from 'fast-glob';
 import fs from 'node:fs';
-import path from 'node:path';
+// import path from 'node:path';
+import util from 'node:util';
 import { collectMetadata, resetMetadata } from './collect-metadata';
 import { inlineFunctions } from './inline-functions';
 // import { STATS } from './stats';
 import { discoverFilesViaReferences } from './utils/discover-files';
 import { findProjectRoot } from './utils/find-project-root';
-import type { LoaderDefinitionFunction } from 'webpack';
-
+import { type LoaderDefinitionFunction, type LoaderContext } from 'webpack';
+import {
+	inlinableFunctions,
+	inlinableFunctionCalls,
+	pureFunctions,
+	callsiteInlineCandidates,
+} from './collect-metadata';
 
 export interface InlineFunctionsOptions {
 	/**
@@ -78,112 +84,137 @@ const astCache = new Map<string, any>();
 const codeCache = new Map<string, string>();
 
 function hashContent(content: string): string {
-  return createHash('md5').update(content).digest('hex');
+	return createHash('md5').update(content).digest('hex');
 }
 
 function scanAndCollectMetadata(options: InlineFunctionsOptions) {
-  if (initialized) return;
+	if (initialized) return;
 
-  // Should we set `initialized = true` here at the top-level or should I wait until the scan/collection has actually been successfully completed?
-  initialized = true;
+	// Should we set `initialized = true` here at the top-level or should I wait until the scan/collection has actually been successfully completed?
+	initialized = true;
 
-  const {
-    include = ['src/**/*.ts'],
-    // include = ['src/**/*.{js,ts,jsx,tsx}'],
-    exclude = ['node_modules/**', '**/*.spec.ts', '**/*.test.ts'],
-    cwd = process.cwd(),
-    debug = false,
-    followExports = true,
-    followImports = true,
-  } = options;
+	const {
+		include = ['src/**/*.ts'],
+		// include = ['src/**/*.{js,ts,jsx,tsx}'],
+		exclude = ['node_modules/**', '**/*.spec.ts', '**/*.test.ts'],
+		cwd = process.cwd(),
+		debug = false,
+		followExports = true,
+		followImports = true,
+	} = options;
 
-  console.log("scanAndCollectMetadata - options: ", options);
+	console.log('scanAndCollectMetadata - options: ', options);
 
-  // STATS.reset();
-  resetMetadata();
-  astCache.clear();
-  codeCache.clear();
+	// STATS.reset();
+	resetMetadata();
+	astCache.clear();
+	codeCache.clear();
 
-  const projectRoot = findProjectRoot(cwd);
-  const includePatterns = Array.isArray(include) ? include : [include];
-  const excludePatterns = Array.isArray(exclude) ? exclude : [exclude];
+	const projectRoot = findProjectRoot(cwd);
+	const includePatterns = Array.isArray(include) ? include : [include];
+	const excludePatterns = Array.isArray(exclude) ? exclude : [exclude];
 
-  const initialFiles = new Set(
-    fg.sync(includePatterns, {
-      cwd: projectRoot,
-      ignore: excludePatterns,
-      absolute: true,
-      onlyFiles: true,
-    })
-  );
+	const initialFiles = new Set(
+		fg.sync(includePatterns, {
+			cwd: projectRoot,
+			ignore: excludePatterns,
+			absolute: true,
+			onlyFiles: true,
+		})
+	);
 
-  const { files } = discoverFilesViaReferences(initialFiles, {
-    projectRoot,
-    excludePatterns,
-    debug,
-    followExports: followExports || false,
-    followImports,
-  });
+	const { files } = discoverFilesViaReferences(initialFiles, {
+		projectRoot,
+		excludePatterns,
+		debug,
+		followExports: followExports || false,
+		followImports,
+	});
 
-  for (const filePath of files) {
-    // if (!/\.(js|ts|jsx|tsx)$/.test(filePath)) continue;
-    if (!/\.ts$/.test(filePath)) continue;
-    try {
-      const contents = fs.readFileSync(filePath, 'utf8');
-      const hash = hashContent(contents);
-      const ast = parse(contents, {
-        sourceType: 'module',
-        plugins: ['typescript'],
-        // plugins: ['typescript', 'jsx'],
-        sourceFilename: filePath,
-      });
-      astCache.set(hash, ast);
-      collectMetadata(ast);
-    } catch (error) {
-      console.warn(`Failed to parse ${filePath}:`, error);
-    }
-  }
+	for (const filePath of files) {
+		// if (!/\.(js|ts|jsx|tsx)$/.test(filePath)) continue;
+		if (!/\.ts$/.test(filePath)) continue;
+		try {
+			const contents = fs.readFileSync(filePath, 'utf8');
+			const hash = hashContent(contents);
+			const ast = parse(contents, {
+				sourceType: 'module',
+				plugins: ['typescript'],
+				// plugins: ['typescript', 'jsx'],
+				sourceFilename: filePath,
+			});
+			astCache.set(hash, ast);
+			collectMetadata(ast);
+		} catch (error) {
+			console.warn(`Failed to parse ${filePath}:`, error);
+		}
+	}
 }
 
 // The actual webpack loader function
-const inlineFunctionsLoader: LoaderDefinitionFunction = function (source) {
-  const id = this.resourcePath;
-  console.log("id: ", id);
+const inlineFunctionsLoader: LoaderDefinitionFunction = function (
+	this: LoaderContext<InlineFunctionsOptions>,
+	source: string
+) {
+	const id = this.resourcePath;
+	console.log(`id: ${id}`);
 
-  // Only transform JS/TS files
-  // if (!/\.(js|ts|jsx|tsx)$/.test(id)) {
-  if (!/\.ts$/.test(id)) {
-    return source;
-  }
+	console.log(`inlinableFunctions.size: ${inlinableFunctions.size}`);
+	for (const [key, call] of inlinableFunctions.entries()) {
+		console.log(
+			`inlinableFunctions - ${key} - call.name: ${call.name} - call.params: ${call.params.toString()}`
+		);
+	}
 
-  // Get options passed via webpack config
-  const options: InlineFunctionsOptions = (this.getOptions() || {}) as InlineFunctionsOptions;
-    console.log("options: ", options);
+	console.log(`\n inlinableFunctionCalls.size: ${inlinableFunctionCalls.size}`);
+	for (const [key, call] of inlinableFunctionCalls.entries()) {
+		console.log(
+			`inlinableFunctionCalls - ${key} - call.name: ${call.name} - call.params: ${call.params.toString()}`
+		);
+	}
 
-  // Lazy one-time initialization
-  scanAndCollectMetadata(options);
+	console.log(`\n pureFunctions.size: ${pureFunctions.size}`);
+	console.log(`pureFunctions: `, pureFunctions);
 
-  const hash = hashContent(source);
-  if (codeCache.has(hash)) {
-    return codeCache.get(hash)!;
-  }
+	console.log(`\n callsiteInlineCandidates.size: ${callsiteInlineCandidates.size}`);
+	console.log(`callsiteInlineCandidates: `, callsiteInlineCandidates);
 
-  try {
-    const ast =
-      astCache.get(hash) ??
-      parse(source, {
-        sourceType: 'module',
-        plugins: ['typescript', 'jsx'],
-        sourceFilename: id,
-      });
+	// Only transform JS/TS files
+	// if (!/\.(js|ts|jsx|tsx)$/.test(id)) {
+	if (!/\.ts$/.test(id)) {
+		return source;
+	}
 
-    const transformedCode = inlineFunctions(ast);
-    codeCache.set(hash, transformedCode);
-    return transformedCode;
-  } catch (error) {
-    console.error(`Failed to transform ${id}:`, error);
-    return source; // Return original on failure
-  }
+	// Get options passed via webpack config
+	const options: InlineFunctionsOptions = (this.getOptions() || {}) as InlineFunctionsOptions;
+	console.log('options: ', options);
+
+	// Lazy one-time initialization
+	scanAndCollectMetadata(options);
+
+	console.log('codeCache.size: ', codeCache.size);
+
+	const hash = hashContent(source);
+	if (codeCache.has(hash)) {
+		return codeCache.get(hash)!;
+	}
+
+	try {
+		const ast =
+			astCache.get(hash) ??
+			parse(source, {
+				sourceType: 'module',
+				plugins: ['typescript', 'jsx'],
+				sourceFilename: id,
+			});
+
+		const transformedCode = inlineFunctions(ast);
+		codeCache.set(hash, transformedCode);
+		return transformedCode;
+	} catch (error) {
+		console.error(`Failed to transform ${id}:`, error);
+		return source; // Return original on failure
+	}
 };
 
 export default inlineFunctionsLoader;

@@ -34,7 +34,7 @@ export const pureFunctions = new Set<string>();
 // Names of functions that have at least one call site annotated with /* @inline */
 // We resolve these to concrete function declarations after all files have been scanned,
 // so that file order does not matter.
-const callsiteInlineCandidates = new Set<string>();
+export const callsiteInlineCandidates = new Set<string>();
 
 export function collectMetadata(ast: ParseResult<File>) {
 	// Look for any function that has a @inline or @pure decorator.
