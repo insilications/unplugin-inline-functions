@@ -3,7 +3,9 @@ import { createHash } from 'node:crypto';
 import fg from 'fast-glob';
 import fs from 'node:fs';
 // import path from 'node:path';
-import util from 'node:util';
+// import util from 'node:util';
+import chalk from 'chalk';
+import { STATS } from './stats';
 import { collectMetadata, resetMetadata } from './collect-metadata';
 import { inlineFunctions } from './inline-functions';
 // import { STATS } from './stats';
@@ -82,14 +84,97 @@ export interface InlineFunctionsOptions {
 let initialized = false;
 const astCache = new Map<string, any>();
 const codeCache = new Map<string, string>();
+const dependencyPaths = new Set<string>();
+
+/**
+ * Log statistics about inlined functions.
+ */
+function logStats(loader_context: LoaderContext<InlineFunctionsOptions>) {
+	const counts = Array.from(STATS.getAllInlinedFunctionCounts()).filter(
+		([name]) => name.trim() !== ''
+	);
+	if (counts.length > 0) {
+		console.log(chalk.green('\n✓ Inlined functions:'));
+		for (const [name, count] of counts) {
+			console.log(`  ${chalk.cyan(name)}: ${chalk.bold(count)}`);
+		}
+	}
+
+	const functions = Array.from(STATS.getAllTransformedFunctions()).filter(
+		([name]) => name.trim() !== ''
+	);
+
+	if (functions.length > 0) {
+		console.log(chalk.green('\n✓ Transformed functions:'));
+		// // Group functions into lines of 4.
+		// const chunkSize = 4;
+		// // Calculate max width for each column.
+		// const columnWidths = Array(chunkSize).fill(0);
+		// for (let i = 0; i < functions.length; i++) {
+		// 	const col = i % chunkSize;
+		// 	const [name, { isPure, absoluteFilePath }] = functions[i];
+		// 	// Account for 2 extra characters if the function is pure (space + star)
+		// 	columnWidths[col] = Math.max(
+		// 		columnWidths[col],
+		// 		name.length + (absoluteFilePath ? absoluteFilePath.length + 3 : 10) + (isPure ? 2 : 0)
+		// 	);
+		// }
+		// // Print in grid format.
+		// for (let i = 0; i < functions.length; i += chunkSize) {
+		// 	const chunk = functions.slice(i, i + chunkSize);
+		// 	const paddedChunk = chunk.map(([name, { isPure, absoluteFilePath }], idx) =>
+		// 		(isPure ? chalk.yellow : chalk.cyan)(
+		// 			`${name}${absoluteFilePath ? ` (${absoluteFilePath})` : ` (unknown)`}${isPure ? ' ★' : ''}`.padEnd(
+		// 				columnWidths[idx]
+		// 			)
+		// 		)
+		// 	);
+		// 	console.log(`  ${paddedChunk.join('  ')}`);
+		// }
+
+		// Print in grid format.
+		for (let i = 0, functionsLen = functions.length; i < functionsLen; ++i) {
+			const func = functions[i];
+			const [name, { isPure, absoluteFilePath }] = func;
+			if (absoluteFilePath) {
+				dependencyPaths.add(absoluteFilePath);
+			}
+			const paddedName = `${name}${absoluteFilePath ? ` (${absoluteFilePath})` : ` (unknown)`}${
+				isPure ? ' ★' : ''
+			}`;
+			// const paddedChunk = chalk[isPure ? 'yellow' : 'cyan'](paddedName);
+			// const paddedChunk = chalk[isPure ? 'yellow' : 'cyan'](
+			// 	`${name}${absoluteFilePath ? ` (${absoluteFilePath})` : ` (unknown)`}${isPure ? ' ★' : ''}`
+			// );
+			// const chunk = functions.slice(i, i + chunkSize);
+			// const paddedChunk = chunk.map(([name, { isPure, absoluteFilePath }], idx) =>
+			// 	(isPure ? chalk.yellow : chalk.cyan)(
+			// 		`${name}${absoluteFilePath ? ` (${absoluteFilePath})` : ` (unknown)`}${isPure ? ' ★' : ''}`.padEnd(
+			// 			columnWidths[idx]
+			// 		)
+			// 	)
+			// );
+			console.log(chalk[isPure ? 'yellow' : 'cyan'](paddedName));
+		}
+		console.log('');
+	}
+
+	for (const dep of dependencyPaths) {
+		loader_context.addDependency(dep);
+	}
+}
 
 function hashContent(content: string): string {
 	return createHash('md5').update(content).digest('hex');
 }
 
 function scanAndCollectMetadata(options: InlineFunctionsOptions) {
-	if (initialized) return;
-
+	console.log('scanAndCollectMetadata - ????????');
+	if (initialized) {
+		console.log('scanAndCollectMetadata - ALREADY INITIALIZED');
+		return;
+	}
+	console.log('scanAndCollectMetadata - INITILIZING');
 	// Should we set `initialized = true` here at the top-level or should I wait until the scan/collection has actually been successfully completed?
 	initialized = true;
 
@@ -103,9 +188,10 @@ function scanAndCollectMetadata(options: InlineFunctionsOptions) {
 		followImports = true,
 	} = options;
 
-	console.log('scanAndCollectMetadata - options: ', options);
+	// console.log('scanAndCollectMetadata - options: ', options);
 
-	// STATS.reset();
+	// Reset state
+	STATS.reset();
 	resetMetadata();
 	astCache.clear();
 	codeCache.clear();
@@ -157,45 +243,54 @@ const inlineFunctionsLoader: LoaderDefinitionFunction = function (
 	source: string
 ) {
 	const id = this.resourcePath;
-	console.log(`id: ${id}`);
+	console.log(`[${new Date().toISOString()}] 0 inlineFunctionsLoader - id: ${id}`);
 
-	console.log(`inlinableFunctions.size: ${inlinableFunctions.size}`);
-	for (const [key, call] of inlinableFunctions.entries()) {
-		console.log(
-			`inlinableFunctions - ${key} - call.name: ${call.name} - call.params: ${call.params.toString()}`
-		);
-	}
+	// console.log(`\n [${new Date().toISOString()}] 0 inlineFunctionsLoader - id: ${id}`);
 
-	console.log(`\n inlinableFunctionCalls.size: ${inlinableFunctionCalls.size}`);
-	for (const [key, call] of inlinableFunctionCalls.entries()) {
-		console.log(
-			`inlinableFunctionCalls - ${key} - call.name: ${call.name} - call.params: ${call.params.toString()}`
-		);
-	}
+	// console.log(`inlinableFunctions.size: ${inlinableFunctions.size}`);
+	// for (const [key, call] of inlinableFunctions.entries()) {
+	// 	console.log(
+	// 		`inlinableFunctions - ${key} - call.name: ${call.name} - call.params: ${call.params.toString()}`
+	// 	);
+	// }
 
-	console.log(`\n pureFunctions.size: ${pureFunctions.size}`);
-	console.log(`pureFunctions: `, pureFunctions);
+	// console.log(`\n inlinableFunctionCalls.size: ${inlinableFunctionCalls.size}`);
+	// for (const [key, call] of inlinableFunctionCalls.entries()) {
+	// 	console.log(
+	// 		`inlinableFunctionCalls - ${key} - call.name: ${call.name} - call.params: ${call.params.toString()}`
+	// 	);
+	// }
 
-	console.log(`\n callsiteInlineCandidates.size: ${callsiteInlineCandidates.size}`);
-	console.log(`callsiteInlineCandidates: `, callsiteInlineCandidates);
+	// console.log(`\n pureFunctions.size: ${pureFunctions.size}`);
+	// console.log(`pureFunctions: `, pureFunctions);
+
+	// console.log(`\n callsiteInlineCandidates.size: ${callsiteInlineCandidates.size}`);
+	// console.log(`callsiteInlineCandidates: `, callsiteInlineCandidates);
 
 	// Only transform JS/TS files
 	// if (!/\.(js|ts|jsx|tsx)$/.test(id)) {
-	if (!/\.ts$/.test(id)) {
-		return source;
-	}
+	// if (!/\.ts$/.test(id)) {
+	// 	return source;
+	// }
 
+	console.log('inlineFunctionsLoader - ????????');
+	if (initialized) {
+		console.log('inlineFunctionsLoader - ALREADY INITIALIZED');
+	} else {
+		console.log('inlineFunctionsLoader - INITILIZING');
+	}
 	// Get options passed via webpack config
 	const options: InlineFunctionsOptions = (this.getOptions() || {}) as InlineFunctionsOptions;
-	console.log('options: ', options);
+	// console.log('options: ', options);
 
 	// Lazy one-time initialization
 	scanAndCollectMetadata(options);
 
-	console.log('codeCache.size: ', codeCache.size);
+	// console.log('codeCache.size: ', codeCache.size);
 
 	const hash = hashContent(source);
 	if (codeCache.has(hash)) {
+		console.log(`[${new Date().toISOString()}] 1 inlineFunctionsLoader - id: ${id}\n`);
 		return codeCache.get(hash)!;
 	}
 
@@ -210,6 +305,9 @@ const inlineFunctionsLoader: LoaderDefinitionFunction = function (
 
 		const transformedCode = inlineFunctions(ast);
 		codeCache.set(hash, transformedCode);
+
+		logStats(this);
+		console.log(`[${new Date().toISOString()}] 2 inlineFunctionsLoader - id: ${id}\n`);
 		return transformedCode;
 	} catch (error) {
 		console.error(`Failed to transform ${id}:`, error);

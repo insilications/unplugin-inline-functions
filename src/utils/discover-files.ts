@@ -34,7 +34,7 @@ export function discoverFilesViaReferences(
 	initialFiles: Set<string>,
 	options: DiscoveryOptions
 ): DiscoveryResult {
-	console.log("discoverFilesViaReferences - options: ", options)
+	// console.log("discoverFilesViaReferences - options: ", options)
 	const { projectRoot, excludePatterns, debug, followExports, followImports } = options;
 	const discoveredViaExports = new Map<string, string[]>();
 	const files = new Set(initialFiles);

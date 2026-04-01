@@ -28,7 +28,7 @@ import {
 	variableDeclarator,
 } from '@babel/types';
 import {
-	InlinableFunction,
+	type InlinableFunction,
 	inlinableFunctionCalls,
 	inlinableFunctions,
 	pureFunctions,
@@ -49,6 +49,7 @@ const traverse = getBabelDefaultExport(_traverse);
 export function inlineFunctions(ast: ParseResult<File>) {
 	let uniqueCounter = 0;
 	const transformedFunctions = new Map<NodePath<Function>, { isPure: boolean }>();
+	const absolutePath: string | undefined = ast.loc?.filename || ast.program?.loc?.filename;
 
 	// Inline all invocations of the inlinable functions.
 	traverse(ast, {
@@ -104,7 +105,7 @@ export function inlineFunctions(ast: ParseResult<File>) {
 			// Save the transformed parent function.
 			const parentFunction = path.getFunctionParent();
 			if (parentFunction) {
-				STATS.setTransformedFunction(getFunctionName(parentFunction), true);
+				STATS.setTransformedFunction(getFunctionName(parentFunction), true, absolutePath);
 
 				if (!transformedFunctions.has(parentFunction)) {
 					transformedFunctions.set(parentFunction, { isPure: true });
@@ -113,7 +114,11 @@ export function inlineFunctions(ast: ParseResult<File>) {
 				// Flag as impure if the inlined function is not pure.
 				if (!pureFunctions.has(inlinableFn.name)) {
 					transformedFunctions.set(parentFunction, { isPure: false });
-					STATS.setTransformedFunction(getFunctionName(parentFunction), false);
+					STATS.setTransformedFunction(
+						getFunctionName(parentFunction),
+						false,
+						absolutePath
+					);
 				}
 			}
 
