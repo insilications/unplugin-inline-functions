@@ -12,12 +12,12 @@ import { inlineFunctions } from './inline-functions';
 import { discoverFilesViaReferences } from './utils/discover-files';
 import { findProjectRoot } from './utils/find-project-root';
 import { type LoaderDefinitionFunction, type LoaderContext } from 'webpack';
-import {
-	inlinableFunctions,
-	inlinableFunctionCalls,
-	pureFunctions,
-	callsiteInlineCandidates,
-} from './collect-metadata';
+// import {
+// 	inlinableFunctions,
+// 	inlinableFunctionCalls,
+// 	pureFunctions,
+// 	callsiteInlineCandidates,
+// } from './collect-metadata';
 
 export interface InlineFunctionsOptions {
 	/**
@@ -168,13 +168,16 @@ function hashContent(content: string): string {
 	return createHash('md5').update(content).digest('hex');
 }
 
-function scanAndCollectMetadata(options: InlineFunctionsOptions) {
-	console.log('scanAndCollectMetadata - ????????');
+export function scanAndCollectMetadata(options: InlineFunctionsOptions) {
 	if (initialized) {
-		console.log('scanAndCollectMetadata - ALREADY INITIALIZED');
+		console.log(
+			`scanAndCollectMetadata - ALREADY INITIALIZED - ${Math.random().toString(36).substring(2, 10)}`
+		);
 		return;
 	}
-	console.log('scanAndCollectMetadata - INITILIZING');
+	console.log(
+		`scanAndCollectMetadata - INITIALIZING - ${Math.random().toString(36).substring(2, 10)}`
+	);
 	// Should we set `initialized = true` here at the top-level or should I wait until the scan/collection has actually been successfully completed?
 	initialized = true;
 
@@ -238,12 +241,12 @@ function scanAndCollectMetadata(options: InlineFunctionsOptions) {
 }
 
 // The actual webpack loader function
-const inlineFunctionsLoader: LoaderDefinitionFunction = function (
+export default function inlineFunctionsLoader(
 	this: LoaderContext<InlineFunctionsOptions>,
 	source: string
 ) {
 	const id = this.resourcePath;
-	console.log(`[${new Date().toISOString()}] 0 inlineFunctionsLoader - id: ${id}`);
+	// console.log(`[${new Date().toISOString()}] 0 inlineFunctionsLoader - id: ${id}`);
 
 	// console.log(`\n [${new Date().toISOString()}] 0 inlineFunctionsLoader - id: ${id}`);
 
@@ -273,25 +276,24 @@ const inlineFunctionsLoader: LoaderDefinitionFunction = function (
 	// 	return source;
 	// }
 
-	console.log('inlineFunctionsLoader - ????????');
-	if (initialized) {
-		console.log('inlineFunctionsLoader - ALREADY INITIALIZED');
-	} else {
-		console.log('inlineFunctionsLoader - INITILIZING');
-	}
 	// Get options passed via webpack config
 	const options: InlineFunctionsOptions = (this.getOptions() || {}) as InlineFunctionsOptions;
 	// console.log('options: ', options);
 
 	// Lazy one-time initialization
 	scanAndCollectMetadata(options);
+	// scanAndCollectMetadata(options);
 
 	// console.log('codeCache.size: ', codeCache.size);
 
 	const hash = hashContent(source);
 	if (codeCache.has(hash)) {
-		console.log(`[${new Date().toISOString()}] 1 inlineFunctionsLoader - id: ${id}\n`);
-		return codeCache.get(hash)!;
+		console.log(
+			`[${new Date().toISOString()}] - ${Math.random().toString(36).substring(2, 10)} - 1 inlineFunctionsLoader - id: ${id}\n`
+		);
+		this.callback(null, codeCache.get(hash)!);
+		// return codeCache.get(hash)!;
+		return;
 	}
 
 	try {
@@ -307,12 +309,16 @@ const inlineFunctionsLoader: LoaderDefinitionFunction = function (
 		codeCache.set(hash, transformedCode);
 
 		logStats(this);
-		console.log(`[${new Date().toISOString()}] 2 inlineFunctionsLoader - id: ${id}\n`);
-		return transformedCode;
+		console.log(
+			`[${new Date().toISOString()}] - ${Math.random().toString(36).substring(2, 10)} - 2 inlineFunctionsLoader - id: ${id}\n`
+		);
+		// return transformedCode;
+		this.callback(null, transformedCode);
+		return;
 	} catch (error) {
 		console.error(`Failed to transform ${id}:`, error);
-		return source; // Return original on failure
+		// return source; // Return original on failure
+		this.callback(error as Error, source);
+		return;
 	}
-};
-
-export default inlineFunctionsLoader;
+}
