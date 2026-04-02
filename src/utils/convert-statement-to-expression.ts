@@ -7,14 +7,15 @@ import {
 	isExpressionStatement,
 	isIdentifier,
 	isIfStatement,
+	isLVal,
 	isReturnStatement,
 	isVariableDeclaration,
 	numericLiteral,
 	sequenceExpression,
 	type Statement,
-	unaryExpression,
 	type VoidPattern,
 	type LVal,
+	unaryExpression,
 } from '@babel/types';
 
 export function convertStatementToExpression(
@@ -63,17 +64,30 @@ export function convertStatementToExpression(
 	if (isVariableDeclaration(statement)) {
 		return sequenceExpression(
 			statement.declarations.map((declaration) => {
-				let id: VoidPattern | LVal = declaration.id;
+				// Babel allows discard bindings in declarators, so `declaration.id` can be a
+				// `VoidPattern` even though `assignmentExpression` only accepts real assignment
+				// targets. Storing the node in a local constant lets the type guard narrow the
+				// exact value we pass to the builder.
+				const declaratorId: LVal | VoidPattern = declaration.id;
+				const init: Expression = declaration.init || identifier('undefined');
 
-				if (isIdentifier(declaration.id) && localVars.has(declaration.id.name)) {
-					id = identifier(declaration.id.name + suffix);
+				// Preserve the inliner's local rename convention before falling back to the
+				// generic LVal branch below.
+				if (isIdentifier(declaratorId) && localVars.has(declaratorId.name)) {
+					return assignmentExpression('=', identifier(declaratorId.name + suffix), init);
 				}
 
-				return assignmentExpression(
-					'=',
-					id,
-					declaration.init || identifier('undeficonstned')
-				);
+				// `isLVal` excludes `VoidPattern`, so inside this branch the declarator is a
+				// valid assignment target and can be reused on the left-hand side safely.
+				if (isLVal(declaratorId)) {
+					return assignmentExpression('=', declaratorId, init);
+				}
+
+				// Discard bindings still evaluate their initializer; they just do not bind the
+				// result to a name. Returning the initializer preserves side effects and
+				// evaluation order inside the surrounding sequence expression without creating
+				// an invalid synthetic assignment target.
+				return init;
 			})
 		);
 	}

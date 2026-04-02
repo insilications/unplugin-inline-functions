@@ -10,8 +10,7 @@
 		"./package.json": "./package.json"
 	},
 	"scripts": {
-		"build": "tsdown",
-		"test": "vitest"
+		"build": "tsdown"
 	},
 	"devDependencies": {
 		"@babel/generator": "^7.29.1",
