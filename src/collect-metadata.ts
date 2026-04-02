@@ -1,14 +1,14 @@
-import { ParseResult } from '@babel/parser';
+import { type ParseResult } from '@babel/parser';
 import _traverse, { NodePath } from '@babel/traverse';
 import {
-	ArrowFunctionExpression,
-	ExpressionStatement,
-	File,
-	FunctionDeclaration,
-	FunctionExpression,
+	type ArrowFunctionExpression,
+	type ExpressionStatement,
+	type File,
+	type FunctionDeclaration,
+	type FunctionExpression,
 	isCallExpression,
 	isIdentifier,
-	VariableDeclarator,
+	type VariableDeclarator,
 } from '@babel/types';
 import { collectDependencyChain, collectLocalDependencies } from './utils/collect-local-dependencies';
 import { hasInlineDecorator, hasPureDecorator } from './utils/decorator-utils';
@@ -26,17 +26,23 @@ export type InlinableFunction = {
 	>;
 };
 
-export const allFunctions = new Map<string, InlinableFunction>();
-export const inlinableFunctions = new Map<string, InlinableFunction>();
-export const inlinableFunctionCalls = new Map<string, InlinableFunction>();
-export const pureFunctions = new Set<string>();
+export const allFunctions: Map<string, InlinableFunction> = new Map<string, InlinableFunction>();
+export const inlinableFunctions: Map<string, InlinableFunction> = new Map<
+	string,
+	InlinableFunction
+>();
+export const inlinableFunctionCalls: Map<string, InlinableFunction> = new Map<
+	string,
+	InlinableFunction
+>();
+export const pureFunctions: Set<string> = new Set<string>();
 
 // Names of functions that have at least one call site annotated with /* @inline */
 // We resolve these to concrete function declarations after all files have been scanned,
 // so that file order does not matter.
-export const callsiteInlineCandidates = new Set<string>();
+export const callsiteInlineCandidates: Set<string> = new Set<string>();
 
-export function collectMetadata(ast: ParseResult<File>) {
+export function collectMetadata(ast: ParseResult<File>): void {
 	// Look for any function that has a @inline or @pure decorator.
 	traverse(ast, {
 		// Collect function delcaratoins.
@@ -147,7 +153,7 @@ export function collectMetadata(ast: ParseResult<File>) {
 	}
 }
 
-export function resetMetadata() {
+export function resetMetadata(): void {
 	allFunctions.clear();
 
 	inlinableFunctions.clear();

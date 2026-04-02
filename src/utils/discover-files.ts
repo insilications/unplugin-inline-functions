@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import fg from 'fast-glob';
 import fs from 'node:fs';
 import path from 'node:path';
-import { findReferencedFiles, FollowImportsOption } from './find-referenced-files';
+import { findReferencedFiles, type FollowImportsOption } from './find-referenced-files';
 
 export type DebugOption = boolean | 'verbose' | undefined;
 

@@ -1,7 +1,7 @@
 import {
 	assignmentExpression,
 	conditionalExpression,
-	Expression,
+	type Expression,
 	identifier,
 	isBlockStatement,
 	isExpressionStatement,
@@ -11,8 +11,10 @@ import {
 	isVariableDeclaration,
 	numericLiteral,
 	sequenceExpression,
-	Statement,
+	type Statement,
 	unaryExpression,
+	type VoidPattern,
+	type LVal,
 } from '@babel/types';
 
 export function convertStatementToExpression(
@@ -61,7 +63,7 @@ export function convertStatementToExpression(
 	if (isVariableDeclaration(statement)) {
 		return sequenceExpression(
 			statement.declarations.map((declaration) => {
-				let id = declaration.id;
+				let id: VoidPattern | LVal = declaration.id;
 
 				if (isIdentifier(declaration.id) && localVars.has(declaration.id.name)) {
 					id = identifier(declaration.id.name + suffix);

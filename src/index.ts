@@ -11,7 +11,8 @@ import { inlineFunctions } from './inline-functions';
 // import { STATS } from './stats';
 import { discoverFilesViaReferences } from './utils/discover-files';
 import { findProjectRoot } from './utils/find-project-root';
-import { type LoaderDefinitionFunction, type LoaderContext } from 'webpack';
+import { type LoaderContext } from 'webpack';
+// import { type LoaderDefinitionFunction } from 'webpack';
 // import {
 // 	inlinableFunctions,
 // 	inlinableFunctionCalls,
@@ -168,7 +169,7 @@ function hashContent(content: string): string {
 	return createHash('md5').update(content).digest('hex');
 }
 
-export function scanAndCollectMetadata(options: InlineFunctionsOptions) {
+export function scanAndCollectMetadata(options: InlineFunctionsOptions): void {
 	if (initialized) {
 		console.log(
 			`scanAndCollectMetadata - ALREADY INITIALIZED - ${Math.random().toString(36).substring(2, 10)}`
@@ -244,7 +245,7 @@ export function scanAndCollectMetadata(options: InlineFunctionsOptions) {
 export default function inlineFunctionsLoader(
 	this: LoaderContext<InlineFunctionsOptions>,
 	source: string
-) {
+): void {
 	const id = this.resourcePath;
 	// console.log(`[${new Date().toISOString()}] 0 inlineFunctionsLoader - id: ${id}`);
 

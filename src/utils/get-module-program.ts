@@ -1,9 +1,9 @@
 import { NodePath } from '@babel/traverse';
-import { Program } from '@babel/types';
+import { type Program } from '@babel/types';
 
 const cache = new Map<NodePath, Program | null>();
 
-export function getModuleProgram(path: NodePath) {
+export function getModuleProgram(path: NodePath): Program | null | undefined {
 	if (cache.has(path)) return cache.get(path);
 
 	let parent = path.parentPath;

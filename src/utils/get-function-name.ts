@@ -1,8 +1,8 @@
 import { NodePath } from '@babel/traverse';
 import {
-	FunctionDeclaration,
-	VariableDeclarator,
-	Function,
+	type FunctionDeclaration,
+	type VariableDeclarator,
+	type Function,
 	isAssignmentExpression,
 	isIdentifier,
 	isMemberExpression,
@@ -10,7 +10,7 @@ import {
 
 export function getFunctionNameFromDeclaration(
 	path: NodePath<FunctionDeclaration | VariableDeclarator>
-) {
+): string | undefined {
 	let name: string | undefined;
 
 	if (path.node.type === 'VariableDeclarator') {
@@ -25,7 +25,7 @@ export function getFunctionNameFromDeclaration(
 	return name;
 }
 
-export function getFunctionName(path: NodePath<Function>) {
+export function getFunctionName(path: NodePath<Function>): string {
 	let name = '';
 	const node = path.node as { id?: { name: string } };
 	if (node.id) {

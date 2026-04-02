@@ -1,5 +1,5 @@
 import { NodePath } from '@babel/traverse';
-import { CallExpression, IfStatement, isBlockStatement } from '@babel/types';
+import { type CallExpression, type IfStatement, isBlockStatement } from '@babel/types';
 
 /**
  * Detects if a CallExpression is inside an IfStatement's consequent or alternate

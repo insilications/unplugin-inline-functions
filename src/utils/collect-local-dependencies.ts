@@ -1,6 +1,12 @@
 import { Binding, NodePath } from '@babel/traverse';
-import { Function, FunctionDeclaration, isIdentifier, Node, VariableDeclarator } from '@babel/types';
-import { getFunctionName, getFunctionNameFromDeclaration } from './get-function-name';
+import {
+	// type Function,
+	type FunctionDeclaration,
+	isIdentifier,
+	type Node,
+	type VariableDeclarator,
+} from '@babel/types';
+import { getFunctionNameFromDeclaration } from './get-function-name';
 import { inlinableFunctions } from '../collect-metadata';
 
 type LocalDependency = {
@@ -14,15 +20,17 @@ type LocalDependency = {
 const functionLocalDeps = new Map<string, Map<string, LocalDependency>>();
 const functionDependencyChains = new Map<string, Set<string>>();
 
-export function getFunctionLocalDeps(name: string) {
+export function getFunctionLocalDeps(name: string): Map<string, LocalDependency> | undefined {
 	return functionLocalDeps.get(name);
 }
 
-export function getFunctionDependencyChain(name: string) {
+export function getFunctionDependencyChain(name: string): Set<string> {
 	return functionDependencyChains.get(name) || new Set<string>();
 }
 
-export function collectLocalDependencies(path: NodePath<FunctionDeclaration | VariableDeclarator>) {
+export function collectLocalDependencies(
+	path: NodePath<FunctionDeclaration | VariableDeclarator>
+): void {
 	const name = getFunctionNameFromDeclaration(path);
 	if (!name) return;
 
@@ -88,7 +96,7 @@ function collectTransitiveDependencies(path: NodePath): Set<string> {
 	return deps;
 }
 
-export function collectDependencyChain(name: string, path: NodePath) {
+export function collectDependencyChain(name: string, path: NodePath): void {
 	path.traverse({
 		CallExpression(callPath) {
 			const node = callPath.node;

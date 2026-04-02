@@ -6,7 +6,7 @@ import { resolveExportPath } from './resolve-export-path';
 import { inlinableFunctions } from '../collect-metadata';
 import {
 	identifier,
-	ImportDeclaration,
+	type ImportDeclaration,
 	importDeclaration,
 	importSpecifier,
 	stringLiteral,
@@ -18,7 +18,7 @@ export function addImportsForDependencies(
 	inlinePath: NodePath,
 	name: string,
 	inlinedImportPath?: string
-) {
+): void {
 	const moduleProgram = getModuleProgram(path);
 	const localDeps = getFunctionLocalDeps(name);
 	const dependencyChain = getFunctionDependencyChain(name);

@@ -1,8 +1,9 @@
 import { NodePath } from '@babel/traverse';
 import { getModuleProgram } from './get-module-program';
+import { type Program } from '@babel/types';
 
-export function removeImportForFunction(path: NodePath, name: string) {
-	const moduleProgram = getModuleProgram(path);
+export function removeImportForFunction(path: NodePath, name: string): string | undefined {
+	const moduleProgram: Program | null | undefined = getModuleProgram(path);
 	if (!moduleProgram) return;
 
 	// Find and remove the specifier for the inlined function
@@ -26,4 +27,6 @@ export function removeImportForFunction(path: NodePath, name: string) {
 			}
 		}
 	}
+
+	return;
 }

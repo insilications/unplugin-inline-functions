@@ -1,12 +1,14 @@
 import _generate from '@babel/generator';
 import _traverse, { NodePath } from '@babel/traverse';
-import { cloneNode, Function, isIdentifier, Node } from '@babel/types';
+import { cloneNode, type Function, isIdentifier, type Node } from '@babel/types';
 import { getBabelDefaultExport } from './utils/babel-exports';
 
 const generate = getBabelDefaultExport(_generate);
 const traverse = getBabelDefaultExport(_traverse);
 
-export function dedupVariables(transformedFunctions: Map<NodePath<Function>, { isPure: boolean }>) {
+export function dedupVariables(
+	transformedFunctions: Map<NodePath<Function>, { isPure: boolean }>
+): void {
 	for (let [functionPath, { isPure }] of transformedFunctions) {
 		if (!isPure) continue;
 

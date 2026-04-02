@@ -1,19 +1,19 @@
 import _generate from '@babel/generator';
-import { ParseResult } from '@babel/parser';
+import { type ParseResult } from '@babel/parser';
 import _traverse, { NodePath } from '@babel/traverse';
 import {
-	AssignmentExpression,
+	type AssignmentExpression,
 	assignmentExpression,
-	BlockStatement,
+	type BlockStatement,
 	blockStatement,
-	CallExpression,
+	type CallExpression,
 	cloneNode,
-	Expression,
+	type Expression,
 	expressionStatement,
-	ExpressionStatement,
+	type ExpressionStatement,
 	file,
-	File,
-	Function,
+	type File,
+	type Function,
 	identifier,
 	isAssignmentExpression,
 	isBlockStatement,
@@ -22,8 +22,8 @@ import {
 	isMemberExpression,
 	program,
 	returnStatement,
-	Statement,
-	V8IntrinsicIdentifier,
+	type Statement,
+	type V8IntrinsicIdentifier,
 	variableDeclaration,
 	variableDeclarator,
 } from '@babel/types';
@@ -46,7 +46,7 @@ import { detectInlineIfBranch } from './utils/detect-inline-if-branch';
 const generate = getBabelDefaultExport(_generate);
 const traverse = getBabelDefaultExport(_traverse);
 
-export function inlineFunctions(ast: ParseResult<File>) {
+export function inlineFunctions(ast: ParseResult<File>): string {
 	let uniqueCounter = 0;
 	const transformedFunctions = new Map<NodePath<Function>, { isPure: boolean }>();
 	const absolutePath: string | undefined = ast.loc?.filename || ast.program?.loc?.filename;

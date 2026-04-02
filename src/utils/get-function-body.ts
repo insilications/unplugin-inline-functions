@@ -1,9 +1,9 @@
 import {
-	ArrowFunctionExpression,
+	type ArrowFunctionExpression,
 	blockStatement,
-	BlockStatement,
-	FunctionDeclaration,
-	FunctionExpression,
+	type BlockStatement,
+	type FunctionDeclaration,
+	type FunctionExpression,
 	isArrowFunctionExpression,
 	returnStatement,
 } from '@babel/types';

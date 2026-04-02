@@ -1,6 +1,7 @@
 import {
 	assignmentExpression,
-	Expression,
+	type Expression,
+	type ExpressionStatement,
 	expressionStatement,
 	identifier,
 	logicalExpression,
@@ -12,7 +13,7 @@ export function createShortCircuit(
 	condition: Expression,
 	expressions: Expression[],
 	completedName?: string
-) {
+): ExpressionStatement {
 	const sequence = sequenceExpression(expressions);
 	return expressionStatement(
 		completedName
@@ -24,7 +25,7 @@ export function createShortCircuit(
 						condition
 					),
 					sequence
-			  )
+				)
 			: logicalExpression('&&', condition, sequence)
 	);
 }
@@ -33,7 +34,7 @@ export function createShortCircuitAssignment(
 	expression: Expression,
 	completedName: string,
 	resultName: string
-) {
+): ExpressionStatement {
 	return expressionStatement(
 		logicalExpression(
 			'&&',

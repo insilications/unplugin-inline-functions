@@ -41,7 +41,7 @@ export function createRelativePath(fromPath: string, toPath: string): string {
 	return newPath;
 }
 
-export function createRelativePathWithRelativePath(toPath: string, relativePath: string) {
+export function createRelativePathWithRelativePath(toPath: string, relativePath: string): string {
 	// Normalize paths to use forward slashes
 	toPath = toPath.replace(/\\/g, '/');
 	relativePath = relativePath.replace(/\\/g, '/');
