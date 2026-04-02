@@ -107,7 +107,7 @@ function logStats(loader_context: LoaderContext<InlineFunctionsOptions>) {
 
 	if (functions.length > 0) {
 		console.log(chalk.green('\n✓ Transformed functions:'));
-		// // Group functions into lines of 4.
+		// Group functions into lines of 4.
 		// const chunkSize = 4;
 		// // Calculate max width for each column.
 		// const columnWidths = Array(chunkSize).fill(0);
