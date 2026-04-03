@@ -1,7 +1,6 @@
 {
 	"compilerOptions": {
 		"allowJs": false,
-		// "allowSyntheticDefaultImports": true,
 		"alwaysStrict": true,
 		"checkJs": false,
 		"composite": true,
@@ -9,20 +8,19 @@
 		"declarationMap": true,
 		"esModuleInterop": true,
 		"exactOptionalPropertyTypes": false,
+		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
 		"ignoreDeprecations": "6.0",
 		"incremental": true,
-		// "tsBuildInfoFile": "./tsconfig.tsbuildinfo",
 		"inlineSources": false,
-		"isolatedDeclarations": true,
-		"isolatedModules": true,
-		"lib": ["ES2023", "ESNext"],
+		"isolatedDeclarations": false,
+		"isolatedModules": false,
+		"lib": ["ESNext"],
 		"module": "ESNext",
 		"moduleResolution": "Bundler",
 		"noErrorTruncation": true,
 		"noImplicitOverride": true,
 		"noImplicitReturns": true,
-		// "explainFiles": true,
 		"noImplicitThis": true,
 		"noPropertyAccessFromIndexSignature": false,
 		"noUnusedLocals": true,
@@ -33,7 +31,6 @@
 		"resolveJsonModule": true,
 		"rootDir": ".",
 		"skipLibCheck": true,
-		// "skipDefaultLibCheck": true,
 		"strict": true,
 		"strictNullChecks": true,
 		"target": "ESNext",
@@ -41,8 +38,8 @@
 		"verbatimModuleSyntax": true
 	},
 	"exclude": ["dist", "node_modules"],
-	"include": ["src/**/*.ts", "types/global.d.ts", "tsdown.config.ts"],
+	"include": ["src/**/*.ts", "tsdown.config.ts"],
 	"typeAcquisition": {
-		"enable": false
+		"enable": true
 	}
 }

@@ -4,14 +4,15 @@ import fg from 'fast-glob';
 import fs from 'node:fs';
 // import path from 'node:path';
 // import util from 'node:util';
-import chalk from 'chalk';
+// import chalk from 'chalk';
 import { STATS } from './stats';
 import { collectMetadata, resetMetadata } from './collect-metadata';
 import { inlineFunctions } from './inline-functions';
 // import { STATS } from './stats';
 import { discoverFilesViaReferences } from './utils/discover-files';
 import { findProjectRoot } from './utils/find-project-root';
-import { type LoaderContext } from 'webpack';
+// import { type LoaderContext } from 'webpack';
+import type * as webpack from 'webpack';
 // import { type LoaderDefinitionFunction } from 'webpack';
 // import {
 // 	inlinableFunctions,
@@ -85,20 +86,29 @@ export interface InlineFunctionsOptions {
 let initialized = false;
 const astCache = new Map<string, any>();
 const codeCache = new Map<string, string>();
-const dependencyPaths = new Set<string>();
+// const dependencyPaths = new Set<string>();
 
 /**
  * Log statistics about inlined functions.
  */
-function logStats(loader_context: LoaderContext<InlineFunctionsOptions>) {
+function logStats(
+	loader_context: webpack.LoaderContext<InlineFunctionsOptions>,
+	debugOutputBuffer: string[],
+	myID: string
+): void {
+	const dependencyPaths = new Set<string>();
 	const counts = Array.from(STATS.getAllInlinedFunctionCounts()).filter(
 		([name]) => name.trim() !== ''
 	);
 	if (counts.length > 0) {
-		console.log(chalk.green('\n✓ Inlined functions:'));
+		debugOutputBuffer.push(`BLEH  [${myID}] ✓ Inlined functions:`);
 		for (const [name, count] of counts) {
-			console.log(`  ${chalk.cyan(name)}: ${chalk.bold(count)}`);
+			debugOutputBuffer.push(`BLEH  [${myID}]    ${name}: ${count}`);
 		}
+		// debugOutputBuffer.push(chalk.green('\n✓ Inlined functions:'));
+		// for (const [name, count] of counts) {
+		// 	debugOutputBuffer.push(`  ${chalk.cyan(name)}: ${chalk.bold(count)}`);
+		// }
 	}
 
 	const functions = Array.from(STATS.getAllTransformedFunctions()).filter(
@@ -106,7 +116,8 @@ function logStats(loader_context: LoaderContext<InlineFunctionsOptions>) {
 	);
 
 	if (functions.length > 0) {
-		console.log(chalk.green('\n✓ Transformed functions:'));
+		debugOutputBuffer.push(`BLEH  [${myID}] ✓ Transformed functions:`);
+		// debugOutputBuffer.push(chalk.green('\n✓ Transformed functions:'));
 		// Group functions into lines of 4.
 		// const chunkSize = 4;
 		// // Calculate max width for each column.
@@ -155,13 +166,17 @@ function logStats(loader_context: LoaderContext<InlineFunctionsOptions>) {
 			// 		)
 			// 	)
 			// );
-			console.log(chalk[isPure ? 'yellow' : 'cyan'](paddedName));
+			debugOutputBuffer.push(`BLEH  [${myID}] ${paddedName}`);
+			// debugOutputBuffer.push(chalk[isPure ? 'yellow' : 'cyan'](paddedName));
 		}
-		console.log('');
+		debugOutputBuffer.push(`BLEH  [${myID}]`);
 	}
 
 	for (const dep of dependencyPaths) {
-		loader_context.addDependency(dep);
+		debugOutputBuffer.push(`BLEH  [${myID}] Dependency: ${dep}`);
+		// loader_context.addDependency(dep);
+		// loader_context.addBuildDependency(dep);
+		// loader_context.addContextDependency(dep);
 	}
 }
 
@@ -169,16 +184,16 @@ function hashContent(content: string): string {
 	return createHash('md5').update(content).digest('hex');
 }
 
-export function scanAndCollectMetadata(options: InlineFunctionsOptions): void {
+export function scanAndCollectMetadata(
+	options: InlineFunctionsOptions,
+	debugOutputBuffer: string[],
+	myID: string
+): void {
 	if (initialized) {
-		console.log(
-			`scanAndCollectMetadata - ALREADY INITIALIZED - ${Math.random().toString(36).substring(2, 10)}`
-		);
+		debugOutputBuffer.push(`BLEH  [${myID}] - scanAndCollectMetadata - ALREADY INITIALIZED`);
 		return;
 	}
-	console.log(
-		`scanAndCollectMetadata - INITIALIZING - ${Math.random().toString(36).substring(2, 10)}`
-	);
+	debugOutputBuffer.push(`BLEH  [${myID}] - scanAndCollectMetadata - INITIALIZING`);
 	// Should we set `initialized = true` here at the top-level or should I wait until the scan/collection has actually been successfully completed?
 	initialized = true;
 
@@ -191,8 +206,6 @@ export function scanAndCollectMetadata(options: InlineFunctionsOptions): void {
 		followExports = true,
 		followImports = true,
 	} = options;
-
-	// console.log('scanAndCollectMetadata - options: ', options);
 
 	// Reset state
 	STATS.reset();
@@ -243,10 +256,17 @@ export function scanAndCollectMetadata(options: InlineFunctionsOptions): void {
 
 // The actual webpack loader function
 export default function inlineFunctionsLoader(
-	this: LoaderContext<InlineFunctionsOptions>,
+	this: webpack.LoaderContext<InlineFunctionsOptions>,
 	source: string
 ): void {
+	const debugOutputBuffer: string[] = [];
 	const id = this.resourcePath;
+	const now = new Date();
+
+	// const myID = Math.random().toString(36).substring(2, 10);
+	const myID = `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}:${now.getMilliseconds()}`;
+	debugOutputBuffer.push(`BLEH  [${myID}] - inlineFunctionsLoader - id: ${id}`);
+	// debugOutputBuffer.push(`BLEH  [${new Date().toISOString()}] - inlineFunctionsLoader - id: ${id}`);
 	// console.log(`[${new Date().toISOString()}] 0 inlineFunctionsLoader - id: ${id}`);
 
 	// console.log(`\n [${new Date().toISOString()}] 0 inlineFunctionsLoader - id: ${id}`);
@@ -282,16 +302,19 @@ export default function inlineFunctionsLoader(
 	// console.log('options: ', options);
 
 	// Lazy one-time initialization
-	scanAndCollectMetadata(options);
+	scanAndCollectMetadata(options, debugOutputBuffer, myID);
 	// scanAndCollectMetadata(options);
 
 	// console.log('codeCache.size: ', codeCache.size);
-
+	//  ${Math.random().toString(36).substring(2, 10)}
 	const hash = hashContent(source);
 	if (codeCache.has(hash)) {
-		console.log(
-			`[${new Date().toISOString()}] - ${Math.random().toString(36).substring(2, 10)} - 1 inlineFunctionsLoader - id: ${id}\n`
+		debugOutputBuffer.push(
+			`BLEH  [${myID}] - inlineFunctionsLoader - ALREADY codeCache - id: ${id}`
 		);
+		debugOutputBuffer.push(`BLEH  [${myID}] --------------------------------`);
+		debugOutputBuffer.push(`BLEH  [${myID}]`);
+		console.log(debugOutputBuffer.join('\n'));
 		this.callback(null, codeCache.get(hash)!);
 		// return codeCache.get(hash)!;
 		return;
@@ -309,15 +332,19 @@ export default function inlineFunctionsLoader(
 		const transformedCode = inlineFunctions(ast);
 		codeCache.set(hash, transformedCode);
 
-		logStats(this);
-		console.log(
-			`[${new Date().toISOString()}] - ${Math.random().toString(36).substring(2, 10)} - 2 inlineFunctionsLoader - id: ${id}\n`
-		);
+		logStats(this, debugOutputBuffer, myID);
+
+		debugOutputBuffer.push(`BLEH  [${myID}] --------------------------------`);
+		debugOutputBuffer.push(`BLEH  [${myID}]`);
+		console.log(debugOutputBuffer.join('\n'));
 		// return transformedCode;
 		this.callback(null, transformedCode);
 		return;
 	} catch (error) {
-		console.error(`Failed to transform ${id}:`, error);
+		debugOutputBuffer.push(`BLEH  [${myID}] - Failed to transform ${id}: ${error}`);
+		debugOutputBuffer.push(`BLEH  [${myID}]--------------------------------`);
+		debugOutputBuffer.push(`BLEH  [${myID}]`);
+		console.log(debugOutputBuffer.join('\n'));
 		// return source; // Return original on failure
 		this.callback(error as Error, source);
 		return;
