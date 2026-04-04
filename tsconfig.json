@@ -14,7 +14,7 @@
 		"incremental": true,
 		"inlineSources": false,
 		"isolatedDeclarations": false,
-		"isolatedModules": false,
+		"isolatedModules": true,
 		"lib": ["ESNext"],
 		"module": "ESNext",
 		"moduleResolution": "Bundler",

@@ -100,10 +100,11 @@ function logStats(
 	const counts = Array.from(STATS.getAllInlinedFunctionCounts()).filter(
 		([name]) => name.trim() !== ''
 	);
+	debugOutputBuffer.push(`BLEH  [${myID}] counts: ${counts.length}`);
 	if (counts.length > 0) {
 		debugOutputBuffer.push(`BLEH  [${myID}] ✓ Inlined functions:`);
 		for (const [name, count] of counts) {
-			debugOutputBuffer.push(`BLEH  [${myID}]    ${name}: ${count}`);
+			debugOutputBuffer.push(`BLEH  [${myID}]      ${name}: ${count}`);
 		}
 		// debugOutputBuffer.push(chalk.green('\n✓ Inlined functions:'));
 		// for (const [name, count] of counts) {
@@ -116,7 +117,7 @@ function logStats(
 	);
 
 	if (functions.length > 0) {
-		debugOutputBuffer.push(`BLEH  [${myID}] ✓ Transformed functions:`);
+		debugOutputBuffer.push(`BLEH  [${myID}]      ✓ Transformed functions:`);
 		// debugOutputBuffer.push(chalk.green('\n✓ Transformed functions:'));
 		// Group functions into lines of 4.
 		// const chunkSize = 4;
@@ -184,14 +185,20 @@ function hashContent(content: string): string {
 	return createHash('md5').update(content).digest('hex');
 }
 
-export function scanAndCollectMetadata(
+export async function scanAndCollectMetadata(
 	options: InlineFunctionsOptions,
 	debugOutputBuffer: string[],
 	myID: string
-): void {
+): Promise<void> {
 	if (initialized) {
 		debugOutputBuffer.push(`BLEH  [${myID}] - scanAndCollectMetadata - ALREADY INITIALIZED`);
 		return;
+	}
+	try {
+		fs.writeFileSync('/king/stuff/dev/langfuse/web/teste.txt', myID);
+		// file written successfully
+	} catch (err) {
+		console.error(err);
 	}
 	debugOutputBuffer.push(`BLEH  [${myID}] - scanAndCollectMetadata - INITIALIZING`);
 	// Should we set `initialized = true` here at the top-level or should I wait until the scan/collection has actually been successfully completed?
@@ -255,17 +262,18 @@ export function scanAndCollectMetadata(
 }
 
 // The actual webpack loader function
-export default function inlineFunctionsLoader(
+export default async function inlineFunctionsLoader(
 	this: webpack.LoaderContext<InlineFunctionsOptions>,
 	source: string
-): void {
+): Promise<string | Error> {
+	// const callback = this.async();
 	const debugOutputBuffer: string[] = [];
-	const id = this.resourcePath;
+	const sourceFilename: string = this.resourcePath;
 	const now = new Date();
 
 	// const myID = Math.random().toString(36).substring(2, 10);
 	const myID = `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}:${now.getMilliseconds()}`;
-	debugOutputBuffer.push(`BLEH  [${myID}] - inlineFunctionsLoader - id: ${id}`);
+	debugOutputBuffer.push(`BLEH  [${myID}] - inlineFunctionsLoader - id: ${sourceFilename}`);
 	// debugOutputBuffer.push(`BLEH  [${new Date().toISOString()}] - inlineFunctionsLoader - id: ${id}`);
 	// console.log(`[${new Date().toISOString()}] 0 inlineFunctionsLoader - id: ${id}`);
 
@@ -302,7 +310,7 @@ export default function inlineFunctionsLoader(
 	// console.log('options: ', options);
 
 	// Lazy one-time initialization
-	scanAndCollectMetadata(options, debugOutputBuffer, myID);
+	await scanAndCollectMetadata(options, debugOutputBuffer, myID);
 	// scanAndCollectMetadata(options);
 
 	// console.log('codeCache.size: ', codeCache.size);
@@ -310,14 +318,14 @@ export default function inlineFunctionsLoader(
 	const hash = hashContent(source);
 	if (codeCache.has(hash)) {
 		debugOutputBuffer.push(
-			`BLEH  [${myID}] - inlineFunctionsLoader - ALREADY codeCache - id: ${id}`
+			`BLEH  [${myID}] - inlineFunctionsLoader - ALREADY codeCache - id: ${sourceFilename}`
 		);
 		debugOutputBuffer.push(`BLEH  [${myID}] --------------------------------`);
 		debugOutputBuffer.push(`BLEH  [${myID}]`);
 		console.log(debugOutputBuffer.join('\n'));
-		this.callback(null, codeCache.get(hash)!);
-		// return codeCache.get(hash)!;
-		return;
+		// callback(null, codeCache.get(hash)!);
+		return codeCache.get(hash)!;
+		// return;
 	}
 
 	try {
@@ -326,10 +334,10 @@ export default function inlineFunctionsLoader(
 			parse(source, {
 				sourceType: 'module',
 				plugins: ['typescript', 'jsx'],
-				sourceFilename: id,
+				sourceFilename,
 			});
 
-		const transformedCode = inlineFunctions(ast);
+		const transformedCode = await inlineFunctions(ast);
 		codeCache.set(hash, transformedCode);
 
 		logStats(this, debugOutputBuffer, myID);
@@ -337,16 +345,16 @@ export default function inlineFunctionsLoader(
 		debugOutputBuffer.push(`BLEH  [${myID}] --------------------------------`);
 		debugOutputBuffer.push(`BLEH  [${myID}]`);
 		console.log(debugOutputBuffer.join('\n'));
-		// return transformedCode;
-		this.callback(null, transformedCode);
-		return;
+		return transformedCode;
+		// callback(null, transformedCode);
+		// return;
 	} catch (error) {
-		debugOutputBuffer.push(`BLEH  [${myID}] - Failed to transform ${id}: ${error}`);
-		debugOutputBuffer.push(`BLEH  [${myID}]--------------------------------`);
+		debugOutputBuffer.push(`BLEH  [${myID}] - Failed to transform ${sourceFilename}: ${error}`);
+		debugOutputBuffer.push(`BLEH  [${myID}] --------------------------------`);
 		debugOutputBuffer.push(`BLEH  [${myID}]`);
 		console.log(debugOutputBuffer.join('\n'));
-		// return source; // Return original on failure
-		this.callback(error as Error, source);
-		return;
+		return error as Error; // Return original on failure
+		// callback(error as Error, source);
+		// return;
 	}
 }

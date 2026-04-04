@@ -2,8 +2,8 @@
 // import type { NodePath } from '@babel/traverse';
 // import type { Function } from '@babel/types';
 
-const inlinedFunctionCount = new Map<string, number>();
-const transformedFunctions = new Map<string, { isPure: boolean; absoluteFilePath?: string }>();
+export const inlinedFunctionCount = new Map<string, number>();
+export const transformedFunctions = new Map<string, { isPure: boolean; absoluteFilePath?: string }>();
 
 function getInlinedFunctionCount(name: string): number {
 	return inlinedFunctionCount.get(name) ?? 0;

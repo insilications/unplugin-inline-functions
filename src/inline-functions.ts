@@ -46,7 +46,7 @@ import { detectInlineIfBranch } from './utils/detect-inline-if-branch';
 const generate = getBabelDefaultExport(_generate);
 const traverse = getBabelDefaultExport(_traverse);
 
-export function inlineFunctions(ast: ParseResult<File>): string {
+export async function inlineFunctions(ast: ParseResult<File>): Promise<string> {
 	let uniqueCounter = 0;
 	const transformedFunctions = new Map<NodePath<Function>, { isPure: boolean }>();
 	const absolutePath: string | undefined = ast.loc?.filename || ast.program?.loc?.filename;
