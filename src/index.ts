@@ -11,15 +11,17 @@ import { inlineFunctions } from './inline-functions';
 // import { STATS } from './stats';
 import { discoverFilesViaReferences } from './utils/discover-files';
 import { findProjectRoot } from './utils/find-project-root';
+import { type ParseResult } from '@babel/parser';
+import { type File } from '@babel/types';
 // import { type LoaderContext } from 'webpack';
 import type * as webpack from 'webpack';
 // import { type LoaderDefinitionFunction } from 'webpack';
-// import {
-// 	inlinableFunctions,
-// 	inlinableFunctionCalls,
-// 	pureFunctions,
-// 	callsiteInlineCandidates,
-// } from './collect-metadata';
+import {
+	inlinableFunctions,
+	// 	inlinableFunctionCalls,
+	// 	pureFunctions,
+	// 	callsiteInlineCandidates,
+} from './collect-metadata';
 
 export interface InlineFunctionsOptions {
 	/**
@@ -83,10 +85,11 @@ export interface InlineFunctionsOptions {
 }
 
 // Module-level state — shared across all loader invocations in a build
-let initialized = false;
-const astCache = new Map<string, any>();
+let initialized: boolean = false;
+const astCache = new Map<string, ParseResult<File>>();
 const codeCache = new Map<string, string>();
 // const dependencyPaths = new Set<string>();
+const workerID: string = Math.random().toString(36).substring(2, 10);
 
 /**
  * Log statistics about inlined functions.
@@ -100,11 +103,11 @@ function logStats(
 	const counts = Array.from(STATS.getAllInlinedFunctionCounts()).filter(
 		([name]) => name.trim() !== ''
 	);
-	debugOutputBuffer.push(`BLEH  [${myID}] counts: ${counts.length}`);
+	debugOutputBuffer.push(`BLEH  [${myID}] - [${workerID}] counts: ${counts.length}`);
 	if (counts.length > 0) {
-		debugOutputBuffer.push(`BLEH  [${myID}] ✓ Inlined functions:`);
+		debugOutputBuffer.push(`BLEH  [${myID}] - [${workerID}] ✓ Inlined functions:`);
 		for (const [name, count] of counts) {
-			debugOutputBuffer.push(`BLEH  [${myID}]      ${name}: ${count}`);
+			debugOutputBuffer.push(`BLEH  [${myID}] - [${workerID}]      ${name}: ${count}`);
 		}
 		// debugOutputBuffer.push(chalk.green('\n✓ Inlined functions:'));
 		// for (const [name, count] of counts) {
@@ -117,7 +120,7 @@ function logStats(
 	);
 
 	if (functions.length > 0) {
-		debugOutputBuffer.push(`BLEH  [${myID}]      ✓ Transformed functions:`);
+		debugOutputBuffer.push(`BLEH  [${myID}] - [${workerID}]      ✓ Transformed functions:`);
 		// debugOutputBuffer.push(chalk.green('\n✓ Transformed functions:'));
 		// Group functions into lines of 4.
 		// const chunkSize = 4;
@@ -167,14 +170,14 @@ function logStats(
 			// 		)
 			// 	)
 			// );
-			debugOutputBuffer.push(`BLEH  [${myID}] ${paddedName}`);
+			debugOutputBuffer.push(`BLEH  [${myID}] - [${workerID}] ${paddedName}`);
 			// debugOutputBuffer.push(chalk[isPure ? 'yellow' : 'cyan'](paddedName));
 		}
-		debugOutputBuffer.push(`BLEH  [${myID}]`);
+		debugOutputBuffer.push(`BLEH  [${myID}] - [${workerID}]`);
 	}
 
 	for (const dep of dependencyPaths) {
-		debugOutputBuffer.push(`BLEH  [${myID}] Dependency: ${dep}`);
+		debugOutputBuffer.push(`BLEH  [${myID}] - [${workerID}] Dependency: ${dep}`);
 		// loader_context.addDependency(dep);
 		// loader_context.addBuildDependency(dep);
 		// loader_context.addContextDependency(dep);
@@ -191,16 +194,18 @@ export async function scanAndCollectMetadata(
 	myID: string
 ): Promise<void> {
 	if (initialized) {
-		debugOutputBuffer.push(`BLEH  [${myID}] - scanAndCollectMetadata - ALREADY INITIALIZED`);
+		debugOutputBuffer.push(
+			`BLEH  [${myID}] - [${workerID}] - scanAndCollectMetadata - ALREADY INITIALIZED`
+		);
 		return;
 	}
-	try {
-		fs.writeFileSync('/king/stuff/dev/langfuse/web/teste.txt', myID);
-		// file written successfully
-	} catch (err) {
-		console.error(err);
-	}
-	debugOutputBuffer.push(`BLEH  [${myID}] - scanAndCollectMetadata - INITIALIZING`);
+	// try {
+	// 	fs.writeFileSync('/king/stuff/dev/langfuse/web/teste.txt', myID);
+	// 	// file written successfully
+	// } catch (err) {
+	// 	console.error(err);
+	// }
+	debugOutputBuffer.push(`BLEH  [${myID}] - [${workerID}] - scanAndCollectMetadata - INITIALIZING`);
 	// Should we set `initialized = true` here at the top-level or should I wait until the scan/collection has actually been successfully completed?
 	initialized = true;
 
@@ -233,13 +238,26 @@ export async function scanAndCollectMetadata(
 		})
 	);
 
-	const { files } = discoverFilesViaReferences(initialFiles, {
+	const { files, discoveredViaExports } = discoverFilesViaReferences(initialFiles, {
 		projectRoot,
 		excludePatterns,
 		debug,
 		followExports: followExports || false,
 		followImports,
 	});
+
+	// Lets store the store discoveredViaExports for printing
+	for (const [file, refs] of discoveredViaExports.entries()) {
+		debugOutputBuffer.push(
+			`BLEH  [${myID}] - [${workerID}] - Discovered ${file} via exports from: ${refs.join(', ')}`
+		);
+	}
+
+	for (const file of files) {
+		debugOutputBuffer.push(
+			`BLEH  [${myID}] - [${workerID}] - collectMetadata() on file: ${file}`
+		);
+	}
 
 	for (const filePath of files) {
 		// if (!/\.(js|ts|jsx|tsx)$/.test(filePath)) continue;
@@ -259,6 +277,13 @@ export async function scanAndCollectMetadata(
 			console.warn(`Failed to parse ${filePath}:`, error);
 		}
 	}
+
+	// Lets debug print the contents of inlinableFunctions
+	for (const [key, value] of inlinableFunctions.entries()) {
+		debugOutputBuffer.push(
+			`BLEH  [${myID}] - [${workerID}] - Inlinable function: ${key} - params: ${value.params.join(', ')}`
+		);
+	}
 }
 
 // The actual webpack loader function
@@ -271,9 +296,10 @@ export default async function inlineFunctionsLoader(
 	const sourceFilename: string = this.resourcePath;
 	const now = new Date();
 
-	// const myID = Math.random().toString(36).substring(2, 10);
 	const myID = `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}:${now.getMilliseconds()}`;
-	debugOutputBuffer.push(`BLEH  [${myID}] - inlineFunctionsLoader - id: ${sourceFilename}`);
+	debugOutputBuffer.push(
+		`BLEH  [${myID}] - [${workerID}] - inlineFunctionsLoader - id: ${sourceFilename}`
+	);
 	// debugOutputBuffer.push(`BLEH  [${new Date().toISOString()}] - inlineFunctionsLoader - id: ${id}`);
 	// console.log(`[${new Date().toISOString()}] 0 inlineFunctionsLoader - id: ${id}`);
 
@@ -315,13 +341,13 @@ export default async function inlineFunctionsLoader(
 
 	// console.log('codeCache.size: ', codeCache.size);
 	//  ${Math.random().toString(36).substring(2, 10)}
-	const hash = hashContent(source);
+	const hash: string = hashContent(source);
 	if (codeCache.has(hash)) {
 		debugOutputBuffer.push(
-			`BLEH  [${myID}] - inlineFunctionsLoader - ALREADY codeCache - id: ${sourceFilename}`
+			`BLEH  [${myID}] - [${workerID}] - inlineFunctionsLoader - ALREADY codeCache - id: ${sourceFilename}`
 		);
-		debugOutputBuffer.push(`BLEH  [${myID}] --------------------------------`);
-		debugOutputBuffer.push(`BLEH  [${myID}]`);
+		debugOutputBuffer.push(`BLEH  [${myID}] - [${workerID}] --------------------------------`);
+		debugOutputBuffer.push(`BLEH  [${myID}] - [${workerID}]`);
 		console.log(debugOutputBuffer.join('\n'));
 		// callback(null, codeCache.get(hash)!);
 		return codeCache.get(hash)!;
@@ -329,7 +355,7 @@ export default async function inlineFunctionsLoader(
 	}
 
 	try {
-		const ast =
+		const ast: ParseResult<File> =
 			astCache.get(hash) ??
 			parse(source, {
 				sourceType: 'module',
@@ -337,21 +363,23 @@ export default async function inlineFunctionsLoader(
 				sourceFilename,
 			});
 
-		const transformedCode = await inlineFunctions(ast);
+		const transformedCode: string = await inlineFunctions(ast);
 		codeCache.set(hash, transformedCode);
 
 		logStats(this, debugOutputBuffer, myID);
 
-		debugOutputBuffer.push(`BLEH  [${myID}] --------------------------------`);
-		debugOutputBuffer.push(`BLEH  [${myID}]`);
+		debugOutputBuffer.push(`BLEH  [${myID}] - [${workerID}] --------------------------------`);
+		debugOutputBuffer.push(`BLEH  [${myID}] - [${workerID}]`);
 		console.log(debugOutputBuffer.join('\n'));
 		return transformedCode;
 		// callback(null, transformedCode);
 		// return;
 	} catch (error) {
-		debugOutputBuffer.push(`BLEH  [${myID}] - Failed to transform ${sourceFilename}: ${error}`);
-		debugOutputBuffer.push(`BLEH  [${myID}] --------------------------------`);
-		debugOutputBuffer.push(`BLEH  [${myID}]`);
+		debugOutputBuffer.push(
+			`BLEH  [${myID}] - [${workerID}] - Failed to transform ${sourceFilename}: ${error}`
+		);
+		debugOutputBuffer.push(`BLEH  [${myID}] - [${workerID}] --------------------------------`);
+		debugOutputBuffer.push(`BLEH  [${myID}] - [${workerID}]`);
 		console.log(debugOutputBuffer.join('\n'));
 		return error as Error; // Return original on failure
 		// callback(error as Error, source);
